@@ -40,11 +40,16 @@ app.get("/register", (req, res) => {
 })
 
 app.post("/home", (req, res) => {
-    // Differentiate between LOGIN and REGISTER
     // Then, logic for creating passport or importing it and maintaining in session (?)
     // Username must be unique (?) in case of registration
+    
+    if (req.body.todo == "Registrati") {
 
-    res.sendFile(path.join(__dirname, 'web/home.html'));
+        res.sendFile(path.join(__dirname, 'web/home.html'));
+    } else if (req.body.todo == "Login") {
+
+        res.sendFile(path.join(__dirname, 'web/home.html'));
+    } else res.send(400)
 })
 
 app.post("/publishMessage", (req, res) => {
@@ -52,4 +57,19 @@ app.post("/publishMessage", (req, res) => {
     // Of course you need to save the message in the blockchain.
 })
 
-app.listen(port, () => {})
+app.listen(port, () => {
+    // I can put here the logic for checking if an account for holding messages is present (SHOULD I GO THIS WAY????)
+    // if not, I should create it here
+    // if yes, retrieving all messages
+
+
+})
+
+
+/* IMPORTANT POINTS:
+1) Only this (maybe others? --> clients should become servers) Node.js server can claim ownership (clients cannot?) --> limitation of the framework?
+1a) One-Point-Failure --> my Node.js server, if taken down, would interrupt access to the chat and data stored as I'm the owner(IS THIS AN ARCHITECTURAL PROBLEM OF C/S APPS????)
+2) No verification of multiple identities by same user
+3) 
+
+*/
