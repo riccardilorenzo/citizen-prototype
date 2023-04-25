@@ -1,0 +1,20 @@
+<html>
+    <head>
+        <title>Citizen Prototype</title>
+        <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css">
+        <script src="bootstrap/js/bootstrap.min.js"></script>
+
+        <link rel="stylesheet" href="style/register.css">
+    </head>
+    <body>
+        <div class="container">
+        <form action="/home" method="POST">
+            <input type="text" placeholder="Username" name="username" />
+            <input type="password" placeholder="Password" name="password" /> <!-- ??? -->
+            <input type="submit" value="Registrati" name="register" />
+        </form>
+        <form method="GET" action="/login">
+            <input type="submit" value="Login?" class="btn btn-secondary" />
+        </form>
+    </body>
+</html>

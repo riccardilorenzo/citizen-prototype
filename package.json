@@ -1,0 +1,17 @@
+{
+  "name": "tesi-node",
+  "version": "1.0.0",
+  "description": "Tesi su identità digitale basata su Blockchain",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Lorenzo Riccardi",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "solc": "^0.8.19",
+    "verifiable-data": "^2.7.2",
+    "web3": "^1.9.0"
+  }
+}
