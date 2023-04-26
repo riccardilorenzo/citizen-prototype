@@ -1,8 +1,11 @@
+require('dotenv').config()
 const express = require('express')
 const path = require('path')
 const app = express()
 const port = process.env.PORT || 8080
-const web3 = require('web3')
+const Web3 = require('web3')
+const web3 = new Web3("https://eth-sepolia.g.alchemy.com/v2/8x2F5HFoIq2l6JtbfKI072IC4xTJDEAe")
+const privateKey = Buffer.from(process.env.PRIVATE_KEY)
 
 app.use(express.static(__dirname + '/web'))
 
@@ -40,7 +43,7 @@ app.get("/register", (req, res) => {
 })
 
 app.post("/home", (req, res) => {
-    // Then, logic for creating passport or importing it and maintaining in session (?)
+    // Logic for creating passport or importing it and maintaining in session (?)
     // Username must be unique (?) in case of registration
     
     if (req.body.todo == "Registrati") {
@@ -62,13 +65,12 @@ app.listen(port, () => {
     // if not, I should create it here
     // if yes, retrieving all messages
 
-
 })
 
 
 /* IMPORTANT POINTS:
-1) Only this (maybe others? --> clients should become servers) Node.js server can claim ownership (clients cannot?) --> limitation of the framework?
-1a) One-Point-Failure --> my Node.js server, if taken down, would interrupt access to the chat and data stored as I'm the owner(IS THIS AN ARCHITECTURAL PROBLEM OF C/S APPS????)
+1) Only this (maybe others? --> clients should become servers) Node.js server can claim ownership (clients cannot?) --> FRAMEWORK MADE THIS WAY
+1a) One-Point-Failure --> my Node.js server, if taken down, would interrupt access to the chat and data stored as I'm the owner (IS THIS AN ARCHITECTURAL PROBLEM OF C/S APPS????)
 2) No verification of multiple identities by same user
 3) 
 
