@@ -30,6 +30,12 @@ app.all("/foo/bar", requireRole("admin"));
 app.all("/foo/bar/*", requireRole("user"));
 */
 
+function isAuthenticated(request) {
+    if (request.session && request.session.logged && request.session.logged == true)
+        return true
+    return false
+}
+
 app.get("/", function(req, res) {
     res.sendFile(path.join(__dirname, 'index.html'));
 })
@@ -45,6 +51,12 @@ app.get("/register", (req, res) => {
 app.post("/home", (req, res) => {
     // Logic for creating passport or importing it and maintaining in session (?)
     // Username must be unique (?) in case of registration
+
+    // NOT NECESSARY BECAUSE THIS IS A POST REQUEST (SEE GET REQUEST UNDER THIS)
+    /*if (req.session.logged && req.session.logged == true) {
+        res.sendFile(path.join(__dirname, 'web/home.html'))
+        return
+    }*/
     
     if (req.body.todo == "Registrati") {
 
@@ -53,6 +65,12 @@ app.post("/home", (req, res) => {
 
         res.sendFile(path.join(__dirname, 'web/home.html'));
     } else res.send(400)
+})
+
+app.get("/home", (req, res) => {
+    if (isAuthenticated(req)) {
+        res.sendFile(path.join(__dirname, 'web/home.html'))
+    } else res.sendFile(path.join(__dirname, 'web/notAuth.html'))
 })
 
 app.post("/publishMessage", (req, res) => {
