@@ -1,6 +1,8 @@
 require('dotenv').config()
 
 const express = require('express')
+const session = require('express-session')
+const bodyParser = require('body-parser')
 const path = require('path')
 const app = express()
 const port = process.env.PORT || 8080
@@ -21,6 +23,15 @@ const generator = new vd.PassportGenerator(web3, passportFactoryAddress)
 let chatHolderAddress
 
 app.use(express.static(__dirname + '/web'))
+app.use(
+    session({
+      secret: process.env.ENCRYPTION_KEY,
+      resave: true,
+      saveUninitialized: false,
+    })
+)
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
 /*function requireRole (role) {
     return function (req, res, next) {
@@ -45,7 +56,7 @@ app.all("/foo/bar/*", requireRole("user"));
 
 async function sendTransaction(txConfig) {
     var signedTx = await web3.eth.accounts.signTransaction(txConfig, privateKey)
-    web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(error, receipt) {
+    await web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(error, receipt) {
         if (!error) {
             return receipt
         } else {
@@ -96,6 +107,7 @@ app.post("/home", (req, res) => {
 })
 
 app.get("/home", (req, res) => {
+    req.session.logged = true
     if (isAuthenticated(req)) {
         res.sendFile(path.join(__dirname, 'web/home.html'))
     } else res.sendFile(path.join(__dirname, 'web/notAuth.html'))
@@ -105,8 +117,12 @@ app.post("/publishMessage", (req, res) => {
     // AJAX method
 
     if (isAuthenticated(req)) {
-        // Save into blockchain the message
-        res.send(200)
+        var msg = req.body.message
+        if (msg && msg.length > 0 && msg.length <= 1024) {
+            // Save into blockchain the message
+            
+            res.status(200).send(/* JSON ARRAY WITH EVERY MESSAGE SAVED */"ciao")
+        } else res.send(400)
     } else res.send(403)
 })
 
@@ -163,8 +179,20 @@ app.listen(port, () => {
                 exit()
             })
         } else {
-            chatHolderAddress = process.env.CHAT_HOLDER_ADDRESS
+            chatHolderAddress = process.env.CHAT_HOLDER_ADDRESS     // retrieving the list of Passport(s) created and obtaining the first is also valid
             console.log("Digital Identity for chat messages holder already created at " + chatHolderAddress)
+            /*new vd.PassportOwnership(web3, chatHolderAddress).claimOwnership(tesiEthereumAddress).then(txConf => {
+                sendTransaction(txConf).then((rec, err1) => {
+                    if (err1) console.log(err1)
+                    else console.log(rec)
+                })
+            })*/
+            /*new vd.Permissions(web3, chatHolderAddress).setWhitelistOnlyPermission(true, tesiEthereumAddress).then(txConfig => {
+                sendTransaction(txConfig).then((rec, err) => {
+                    if (err) console.log(err)
+                    else console.log(rec)
+                })
+            })*/
             console.log("Startup ended.")
         }
     }).catch(err => {

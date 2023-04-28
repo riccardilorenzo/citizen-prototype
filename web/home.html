@@ -3,12 +3,41 @@
         <title>Citizen Prototype</title>
         <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css">
         <script src="bootstrap/js/bootstrap.min.js"></script>
+        
+        <script src="scripts/jquery.js"></script>
 
         <link rel="stylesheet" href="style/home.css">
+        <script>
+            function submitMessage(e) {
+                e.preventDefault()
+                $.post("/publishMessage", { message: $("#chatmsg").val() }, function(msgs) {
+                    // Republish every message in the chat: TODO
+                    $("#wow").append(msgs)
+                }).fail(function(error) {
+                    alert('Error: ' + (error.status == 400 ? "maximum length of 1024, minimum of 0" : "generic"));
+                })
+                return false;
+            }
+        </script>
     </head>
     <body>
         <div class="container">
+            <div id="header">
+                <a href="/logout"><button class="btn btn-warning">Logout</button></a>
+            </div>
             <!-- CHAT -->
+            <div id="chat">
+                <div id="chat-list">
+                    <p id="wow"></p>
+                </div>
+                <div id="chat-msg">
+                    <form id="chatForm" method="POST" onsubmit="submitMessage(event)">
+                        <input type="text" placeholder="Inserisci il tuo messaggio" id="chatmsg" name="message" />
+                        <input type="submit" value="Invia" class="btn btn-success" />
+                        <input type="reset" value="Cancella" class="btn btn-danger" />
+                    </form>
+                </div>
+            </div>
         </div>
     </body>
 </html>
