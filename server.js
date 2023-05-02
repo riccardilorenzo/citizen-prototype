@@ -20,7 +20,8 @@ const passportFactoryAddress = process.env.PASSPORTFACTORY_ADDRESS
 const tesiEthereumAddress = process.env.TESI_ETHEREUM_ADDRESS
 const passportReader = new vd.PassportReader(web3)
 const generator = new vd.PassportGenerator(web3, passportFactoryAddress)
-let chatHolderAddress
+let chatHolderAddress = process.env.CHAT_HOLDER_ADDRESS
+const chatWriter = new vd.FactWriter(web3, chatHolderAddress)
 
 app.use(express.static(__dirname + '/web'))
 app.use(
@@ -32,6 +33,7 @@ app.use(
 )
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use(bodyParser.text())
 
 /*function requireRole (role) {
     return function (req, res, next) {
@@ -66,6 +68,18 @@ async function sendTransaction(txConfig) {
             return null
         }
     })
+}
+
+async function retrieveAllMessages() {  // TODO: PENSARE COME IMPLEMENTARE IL SALVATAGGIO DEI MESSAGGI
+    var messages = []
+    var i = 0
+    var msg
+    var fReader = new vd.FactReader(web3, chatHolderAddress)
+    while (msg = await fReader.getString(tesiEthereumAddress, 'msg' + i)) {
+        messages.push(msg)
+        i++
+    }
+    return messages;
 }
 
 function isAuthenticated(request) {
@@ -120,8 +134,8 @@ app.post("/publishMessage", (req, res) => {
         var msg = req.body.message
         if (msg && msg.length > 0 && msg.length <= 1024) {
             // Save into blockchain the message
-            
-            res.status(200).send(/* JSON ARRAY WITH EVERY MESSAGE SAVED */"ciao")
+
+            res.status(200).send(/* retrieveAllMessages() */"ciao")
         } else res.send(400)
     } else res.send(403)
 })
@@ -130,6 +144,10 @@ app.get("/logout", (req, res) => {
     if (isAuthenticated(req))
         req.session.destroy()
     res.redirect("/")
+})
+
+app.get("/retrieveMessages", (req, res) => {
+    res.send(retrieveAllMessages())
 })
 
 app.listen(port, () => {
@@ -193,6 +211,7 @@ app.listen(port, () => {
                     else console.log(rec)
                 })
             })*/
+            // chatWriter.setString("msg") TODO: PENSARE A COME SALVARE I MESSAGGI
             console.log("Startup ended.")
         }
     }).catch(err => {
@@ -209,9 +228,11 @@ app.listen(port, () => {
 2) No verification of multiple identities by same user
 3) CHIUNQUE PUO' SCRIVERE SU UNA IDENTITA' DIGITALE (SOLO I FACTS PRIVATI RICHIEDONO DI ESSERE OWNER) --> NON SI PUO' DARE PER SCONTATA L'IDENTITA'
 4) I MESSAGGI SONO IN CHIARO PER SEMPLICITA' --> potrei farli privati ma che sbatto (sarebbero basati su IPFS)
-5) Proseguimento del punto 4: SOLO I DATI DEGLI UTENTI SONO PRIVATI (OWNERSHIP SOLO DAL SERVER (???!!!), ENCRYPTION KEY MANDATA DAL CLIENTE AL LOGIN)
+5) Proseguimento del punto 4: SOLO I DATI DEGLI UTENTI SONO PRIVATI (OWNERSHIP SOLO DAL SERVER (!!!), ENCRYPTION KEY MANDATA DAL CLIENTE AL LOGIN)
    Ciò significa che potenzialmente il server può leggere username/password (se non hashata, ma io la hasho), ma gli utenti devono avere fiducia che io non lo faccia.
    Faccio così per evitare agli utenti lo sbatto di avere proprie chiavi private e pubbliche e di avere un account ETH con un saldo non nullo (dato che claimare ownership costa) 
    e tutto il resto come descritto nella tesi al terzo capitolo
    SOLUZIONE DA VERIFICARE: BANALMENTE, SE SALVO TUTTO COME FATTI -NON- PRIVATI (MA LA PASSWORD CON HASH) RISOLVO LA COSA CIRCA
+6) USARE COME CHIAVE LA COPPIA (Timestamp, Author) E VALORE Messaggio
+   ALTERNATIVA:    (Data): [(Timestamp, Author, Messaggio)]
 */

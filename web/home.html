@@ -8,6 +8,16 @@
 
         <link rel="stylesheet" href="style/home.css">
         <script>
+            function retrieveMessages() {
+                $.get("/retrieveMessages", null, function(msgs) {
+                    for (var msg in msgs) {
+                        // SPLIT msg TO GET AUTHOR AND MESSAGE; MUST DECIDE THE SEPARATOR
+                        $("#chat-list").val().append(author + ": " + message)
+                    }
+                })
+                setTimeout(retrieveMessages, 5000)
+            }
+
             function submitMessage(e) {
                 e.preventDefault()
                 $.post("/publishMessage", { message: $("#chatmsg").val() }, function(msgs) {
@@ -20,7 +30,7 @@
             }
         </script>
     </head>
-    <body>
+    <body onload="retrieveMessages()">
         <div class="container">
             <div id="header">
                 <a href="/logout"><button class="btn btn-warning">Logout</button></a>
