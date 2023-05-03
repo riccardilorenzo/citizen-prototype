@@ -59,7 +59,7 @@ app.all("/foo/bar/*", requireRole("user"));
 
 async function sendTransaction(txConfig) {
     var signedTx = await web3.eth.accounts.signTransaction(txConfig, privateKey)
-    await web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(error, receipt) {
+    /*await web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(error, receipt) {
         if (!error) {
             return receipt
         } else {
@@ -68,7 +68,8 @@ async function sendTransaction(txConfig) {
             //exit()
             return null
         }
-    })
+    })*/
+    return web3.eth.sendSignedTransaction(signedTx.rawTransaction)
 }
 
 function retrieveAllMessages() {
@@ -127,26 +128,37 @@ app.post("/home", (req, res) => {
         // after having created the digital identity, you MUST set the whitelist to only allow the creator of the D.I. to write to it TODO
 
         passportReader.getPassportsList(passportFactoryAddress).then(passports => {
-            for (let i in passports) {
-                new vd.FactReader(web3, passports[i].passportAddress).getString("username").then(uname => {
+            let shouldStop = false
+            passports.forEach(function (pp) {
+                new vd.FactReader(web3, pp.passportAddress).getString(tesiEthereumAddress, "username").then(uname => {
                     if (uname == req.body.username) {
+                        shouldStop = true
                         res.redirect(409, '/register')
                         return
                     }
                 })
-            }
+            })
+            if (shouldStop) return
             generator.createPassport(tesiEthereumAddress).then(txConf => {
                 sendTransaction(txConf).then(receipt => {
+                    console.log("-----RECEIPT-----")
+                    console.log(receipt)
+                    console.log("-----------------")
                     let passAddress = vd.PassportGenerator.getPassportAddressFromReceipt(receipt)
+                    console.log("Passport created at " + passAddress + "!")
                     new vd.PassportOwnership(web3, passAddress).claimOwnership(tesiEthereumAddress).then(txC => {
                         sendTransaction(txC).then(rec => {
+                            console.log("Passport ownership claimed!")
                             new vd.Permissions(web3, passAddress).setWhitelistOnlyPermission(true, tesiEthereumAddress).then(txD => {
                                 sendTransaction(txD).then(rec => {
+                                    console.log("Passport whitelisted!")
                                     let pWriter = new vd.FactWriter(web3, passAddress)
                                     pWriter.setString("username", req.body.username, tesiEthereumAddress).then(tData => {
                                         sendTransaction(tData).then(r => {
+                                            console.log("Passport username set!")
                                             pWriter.setString("password", hash(req.body.password), tesiEthereumAddress).then(tConfiguration => {
                                                 sendTransaction(tConfiguration).then(passReceipt => {
+                                                    console.log("Passport password set, logging in...")
                                                     req.session.username = req.body.username
                                                     req.session.logged = true
                                                     req.session.address = passAddress
@@ -165,29 +177,33 @@ app.post("/home", (req, res) => {
     } else if (req.body.todo == "Login") {
         passportReader.getPassportsList(passportFactoryAddress).then(passports => {
             let found = false
-            for (let i in passports) {
-                let psReader = new vd.FactReader(web3, passports[i].passportAddress)
-                if (psReader.getString("username") == req.body.username) {
-                    found = true
+            passports.forEach((pp) => {
+                let psReader = new vd.FactReader(web3, pp.passportAddress)
+                psReader.getString(tesiEthereumAddress, "username").then(foundUsername => {
+                    if (foundUsername == req.body.username) {
+                        found = true
 
-                    // Comparing password hashes
-                    if (hash(req.body.password) == psReader.getString("password")) {
-                        req.session.logged = true
-                        req.session.username = req.body.username
-                        req.session.address = passports[i].passportAddress
-                        res.sendFile(path.join(__dirname, 'web/home.html'));
-                    } else res.redirect(401, '/login')
-
-                    break
-                }
-            }
+                        // Comparing password hashes
+                        psReader.getString(tesiEthereumAddress, "password").then(foundPassword => {
+                            if (hash(req.body.password) == foundPassword) {
+                                req.session.logged = true
+                                req.session.username = req.body.username
+                                req.session.address = pp.passportAddress
+                                res.sendFile(path.join(__dirname, 'web/home.html'));
+                            } else res.redirect(401, '/login')
+    
+                            return
+                        })
+                    }
+                })
+            })
             if (!found) res.redirect(401, '/login')
         })
     } else res.redirect(400, '/')
 })
 
 app.get("/home", (req, res) => {
-    req.session.logged = true   // TODO: REMOVE
+    //req.session.logged = true
     if (isAuthenticated(req)) {
         res.sendFile(path.join(__dirname, 'web/home.html'))
     } else res.sendFile(path.join(__dirname, 'web/notAuth.html'))
@@ -197,14 +213,14 @@ app.post("/publishMessage", (req, res) => {     // AJAX method
     if (isAuthenticated(req)) {
         var msg = req.body.message
         if (msg && msg.length > 0 && msg.length <= 1024) {
-            // Save into blockchain the message
-            let txData = new vd.FactWriter(web3, req.session.address).setString(formatUsername(req.session.username), msg, tesiEthereumAddress)
-            sendTransaction(txData).then((rec, err) => {
-                if (!err) {
-                    res.status(200).send(/* retrieveAllMessages() */req.session.username)   // Uncommenting would be the best way, but very resource-intensive
-                } else {
-                    res.sendStatus(500)
-                }
+            new vd.FactWriter(web3, req.session.address).setString(formatUsername(req.session.username), msg, tesiEthereumAddress).then(txData => {
+                sendTransaction(txData).then((rec, err) => {
+                    if (!err) {
+                        res.status(200).send(/* retrieveAllMessages() */req.session.username)   // Uncommenting would be the best way, but very resource-intensive
+                    } else {
+                        res.sendStatus(500)
+                    }
+                })
             })
         } else res.send(400)
     } else res.send(403)
@@ -302,6 +318,6 @@ app.listen(port, () => {
    Faccio così per evitare agli utenti lo sbatto di avere proprie chiavi private e pubbliche e di avere un account ETH con un saldo non nullo (dato che claimare ownership costa) 
    e tutto il resto come descritto nella tesi al terzo capitolo
    SOLUZIONE DA VERIFICARE: BANALMENTE, SE SALVO TUTTO COME FATTI -NON- PRIVATI (MA LA PASSWORD CON HASH) RISOLVO LA COSA CIRCA
-6) USARE COME CHIAVE LA COPPIA (Timestamp, Author) E VALORE Messaggio
+6) USARE COME CHIAVE LA COPPIA (Timestamp, Author) E VALORE Messaggio --> RIFORMULAZIONE: è stata usata (Timestamp): (Message), dato che ogni messaggio è salvato nell'indirizzo dello scrittore
 7) NON RISPETTO LA GDPR --> L'UTENTE NON HA POSSIBILITA' DI RITIRARE I PROPRI DATI
 */
