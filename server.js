@@ -3,6 +3,7 @@ require('dotenv').config()
 const express = require('express')
 const session = require('express-session')
 const bodyParser = require('body-parser')
+const { createHash } = require('crypto');
 const path = require('path')
 const app = express()
 const port = process.env.PORT || 8080
@@ -70,8 +71,8 @@ async function sendTransaction(txConfig) {
     })
 }
 
-async function retrieveAllMessages() {  // TODO: PENSARE COME IMPLEMENTARE IL SALVATAGGIO DEI MESSAGGI
-    var messages = []
+function retrieveAllMessages() {
+    /*var messages = []
     var i = 0
     var msg
     var fReader = new vd.FactReader(web3, chatHolderAddress)
@@ -79,7 +80,21 @@ async function retrieveAllMessages() {  // TODO: PENSARE COME IMPLEMENTARE IL SA
         messages.push(msg)
         i++
     }
-    return messages;
+    return messages;*/
+    return ["ciao"]
+}
+
+function hash(string) {     // I could pass a second parameter as the used hash algorithm, for future-proofing (and saving the used algorithm in the blockchain)
+  return createHash('sha256').update(string).digest('hex');
+}
+
+function formatUsername(username) {
+    //return Date.now() + "-" + username
+    return Date.now()
+}
+
+function parseKey() {
+    // WITH CURRENT LOGIC IT'S USELESS (SEE formatUsername())
 }
 
 function isAuthenticated(request) {
@@ -101,41 +116,87 @@ app.get("/register", (req, res) => {
 })
 
 app.post("/home", (req, res) => {
-    // Logic for creating passport or importing it and maintaining in session (?)
-    // Username must be unique (?) in case of registration
+    // Logic for creating passport or importing it and maintaining in session
+    // Username must be unique in case of registration, so the user can avoid using its address and make it seamless with a normal chat
+    if (req.session)
+        req.session.destroy()
     
     if (req.body.todo == "Registrati") {
-        if (req.session)
-            req.session.destroy()
         
         // check if username does not already exist TODO
         // after having created the digital identity, you MUST set the whitelist to only allow the creator of the D.I. to write to it TODO
-        req.session.username = req.body.username
-        req.session.logged = true
-        res.sendFile(path.join(__dirname, 'web/home.html'));
-    } else if (req.body.todo == "Login") {
 
-        req.session.logged = true
-        res.sendFile(path.join(__dirname, 'web/home.html'));
-    } else res.send(400)
+        passportReader.getPassportsList(passportFactoryAddress).then(passports => {
+            for (let i in passports) {
+                new vd.FactReader(web3, passports[i].passportAddress).getString("username").then(uname => {
+                    if (uname == req.body.username) {
+                        res.redirect(409, '/register')
+                        return
+                    }
+                })
+            }
+            generator.createPassport(tesiEthereumAddress).then(txConf => {
+                sendTransaction(txConf).then(receipt => {
+                    let passAddress = vd.PassportGenerator.getPassportAddressFromReceipt(receipt)
+                    new vd.PassportOwnership(web3, passAddress).claimOwnership(tesiEthereumAddress).then(txC => {
+                        sendTransaction(txC).then(rec => {
+                            new vd.Permissions(web3, passAddress).setWhitelistOnlyPermission(true, tesiEthereumAddress).then(txD => {
+                                sendTransaction(txD).then(rec => {
+                                    req.session.username = req.body.username
+                                    req.session.logged = true
+                                    req.session.address = passAddress
+                                    res.sendFile(path.join(__dirname, 'web/home.html'));
+                                })
+                            })
+                        })
+                    })
+                })
+            })
+        })
+    } else if (req.body.todo == "Login") {
+        passportReader.getPassportsList(passportFactoryAddress).then(passports => {
+            let found = false
+            for (let i in passports) {
+                let psReader = new vd.FactReader(web3, passports[i].passportAddress)
+                if (psReader.getString("username") == req.body.username) {
+                    found = true
+
+                    // Comparing password hashes
+                    if (hash(req.body.password) == psReader.getString("password")) {
+                        req.session.logged = true
+                        req.session.username = req.body.username
+                        req.session.address = passports[i].passportAddress
+                        res.sendFile(path.join(__dirname, 'web/home.html'));
+                    } else res.redirect(401, '/login')
+
+                    break
+                }
+            }
+            if (!found) res.redirect(401, '/login')
+        })
+    } else res.redirect(400, '/')
 })
 
 app.get("/home", (req, res) => {
-    req.session.logged = true
+    req.session.logged = true   // TODO: REMOVE
     if (isAuthenticated(req)) {
         res.sendFile(path.join(__dirname, 'web/home.html'))
     } else res.sendFile(path.join(__dirname, 'web/notAuth.html'))
 })
 
-app.post("/publishMessage", (req, res) => {
-    // AJAX method
-
+app.post("/publishMessage", (req, res) => {     // AJAX method
     if (isAuthenticated(req)) {
         var msg = req.body.message
         if (msg && msg.length > 0 && msg.length <= 1024) {
             // Save into blockchain the message
-
-            res.status(200).send(/* retrieveAllMessages() */"ciao")
+            let txData = new vd.FactWriter(web3, req.session.address).setString(formatUsername(req.session.username), msg, tesiEthereumAddress)
+            sendTransaction(txData).then((rec, err) => {
+                if (!err) {
+                    res.status(200).send(/* retrieveAllMessages() */req.session.username)   // Uncommenting would be the best way, but very resource-intensive
+                } else {
+                    res.sendStatus(500)
+                }
+            })
         } else res.send(400)
     } else res.send(403)
 })
@@ -143,10 +204,10 @@ app.post("/publishMessage", (req, res) => {
 app.get("/logout", (req, res) => {
     if (isAuthenticated(req))
         req.session.destroy()
-    res.redirect("/")
+    res.redirect(200, "/")  // Changed from default 301 status code
 })
 
-app.get("/retrieveMessages", (req, res) => {
+app.get("/retrieveMessages", (req, res) => {    // Everybody can read without authentication, data is public anyway
     res.send(retrieveAllMessages())
 })
 
@@ -211,7 +272,6 @@ app.listen(port, () => {
                     else console.log(rec)
                 })
             })*/
-            // chatWriter.setString("msg") TODO: PENSARE A COME SALVARE I MESSAGGI
             console.log("Startup ended.")
         }
     }).catch(err => {
@@ -234,5 +294,5 @@ app.listen(port, () => {
    e tutto il resto come descritto nella tesi al terzo capitolo
    SOLUZIONE DA VERIFICARE: BANALMENTE, SE SALVO TUTTO COME FATTI -NON- PRIVATI (MA LA PASSWORD CON HASH) RISOLVO LA COSA CIRCA
 6) USARE COME CHIAVE LA COPPIA (Timestamp, Author) E VALORE Messaggio
-   ALTERNATIVA:    (Data): [(Timestamp, Author, Messaggio)]
+7) NON RISPETTO LA GDPR --> L'UTENTE NON HA POSSIBILITA' DI RITIRARE I PROPRI DATI
 */

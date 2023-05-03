@@ -10,8 +10,8 @@
         <script>
             function retrieveMessages() {
                 $.get("/retrieveMessages", null, function(msgs) {
-                    for (var msg in msgs) {
-                        // SPLIT msg TO GET AUTHOR AND MESSAGE; MUST DECIDE THE SEPARATOR
+                    for (let i in msgs) {
+                        // SPLIT msg TO GET AUTHOR AND MESSAGE; separator is "-" without quotes; sort messages by timestamp
                         $("#chat-list").val().append(author + ": " + message)
                     }
                 })
@@ -20,11 +20,21 @@
 
             function submitMessage(e) {
                 e.preventDefault()
-                $.post("/publishMessage", { message: $("#chatmsg").val() }, function(msgs) {
-                    // Republish every message in the chat: TODO
-                    $("#wow").append(msgs)
+                let yourM = $("#chatmsg").val()
+                $.post("/publishMessage", { message: yourM }, function(username) {
+                    /*// Republish every message in the chat: TODO
+                    $("#chat-table").append(msgs)*/
+                    $("#chat-table").prepend("<tr><td>" + username + "</td><td>" + yourM + "</td>")
                 }).fail(function(error) {
-                    alert('Error: ' + (error.status == 400 ? "maximum length of 1024, minimum of 0" : "generic"));
+                    alert('Error: ' + (error.status == 400 ? "" : "generic"));
+                    if (error.status == 400)
+                        alert('Error: maximum length of 1024, minimum of 0')
+                    else if (error.status == 500)
+                        alert('Error: error while communicating with the blockchain')
+                    /*else if (error.status == 403)
+                        alert('Error: not authenticated')*/
+                    else
+                        alert('Error: generic')
                 })
                 return false;
             }
@@ -38,7 +48,9 @@
             <!-- CHAT -->
             <div id="chat">
                 <div id="chat-list">
-                    <p id="wow"></p>
+                    <table id="chat-table">
+                        
+                    </table>
                 </div>
                 <div id="chat-msg">
                     <form id="chatForm" method="POST" onsubmit="submitMessage(event)">
