@@ -142,10 +142,19 @@ app.post("/home", (req, res) => {
                         sendTransaction(txC).then(rec => {
                             new vd.Permissions(web3, passAddress).setWhitelistOnlyPermission(true, tesiEthereumAddress).then(txD => {
                                 sendTransaction(txD).then(rec => {
-                                    req.session.username = req.body.username
-                                    req.session.logged = true
-                                    req.session.address = passAddress
-                                    res.sendFile(path.join(__dirname, 'web/home.html'));
+                                    let pWriter = new vd.FactWriter(web3, passAddress)
+                                    pWriter.setString("username", req.body.username, tesiEthereumAddress).then(tData => {
+                                        sendTransaction(tData).then(r => {
+                                            pWriter.setString("password", hash(req.body.password), tesiEthereumAddress).then(tConfiguration => {
+                                                sendTransaction(tConfiguration).then(passReceipt => {
+                                                    req.session.username = req.body.username
+                                                    req.session.logged = true
+                                                    req.session.address = passAddress
+                                                    res.sendFile(path.join(__dirname, 'web/home.html'));
+                                                })
+                                            })
+                                        })
+                                    })
                                 })
                             })
                         })
