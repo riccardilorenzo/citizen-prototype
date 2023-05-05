@@ -8,23 +8,29 @@
 
         <link rel="stylesheet" href="style/home.css">
         <script>
+            function formatRow(timestamp, author, message) {
+                return '<tr><th scope="row">' + new Date(timestamp).toISOString() + '</th><td>' + author + ':</td><td>' + message + '</td></tr>'
+            }
+
             function retrieveMessages() {
                 $.get("/retrieveMessages", null, function(msgs) {
                     for (let i in msgs) {
                         // SPLIT msg TO GET AUTHOR AND MESSAGE; separator is "-" without quotes; sort messages by timestamp
-                        $("#chat-list").val().append(author + ": " + message)
+                        $("#chat-list").val().append(formatRow(msgs[i].timestamp, msgs[i].author, msgs[i].message))
                     }
                 })
-                setTimeout(retrieveMessages, 5000)
+                setTimeout(retrieveMessages, 10000)
             }
 
             function submitMessage(e) {
                 e.preventDefault()
                 let yourM = $("#chatmsg").val()
-                $.post("/publishMessage", { message: yourM }, function(username) {
+                $("form :input").prop("disabled", true)
+                $.post("/publishMessage", { message: yourM }, function(res) {
                     /*// Republish every message in the chat: TODO
                     $("#chat-table").append(msgs)*/
-                    $("#chat-table").prepend("<tr><td>" + username + "</td><td>" + yourM + "</td>")
+                    $("#chat-table").prepend(formatRow(res.timestamp, res.username, yourM))
+                    $("form :input").prop("disabled", false)
                 }).fail(function(error) {
                     alert('Error: ' + (error.status == 400 ? "" : "generic"));
                     if (error.status == 400)
@@ -47,15 +53,20 @@
             </div>
             <!-- CHAT -->
             <div id="chat">
-                <div id="chat-list">
-                    <table id="chat-table">
-                        
+                <div id="chat-list" class="pre-scrollable">
+                    <table class="table table-hover">
+                        <thead>
+
+                        </thead>
+                        <tbody id="chat-table">
+
+                        </tbody>
                     </table>
                 </div>
                 <div id="chat-msg">
                     <form id="chatForm" method="POST" onsubmit="submitMessage(event)">
                         <input type="text" placeholder="Inserisci il tuo messaggio" id="chatmsg" name="message" />
-                        <input type="submit" value="Invia" class="btn btn-success" />
+                        <input type="submit" id="submess" value="Invia" class="btn btn-success" />
                         <input type="reset" value="Cancella" class="btn btn-danger" />
                     </form>
                 </div>

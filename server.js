@@ -73,16 +73,16 @@ async function sendTransaction(txConfig) {
 }
 
 function retrieveAllMessages() {
-    /*var messages = []
-    var i = 0
+    var messages = []
+
+    /*var i = 0
     var msg
     var fReader = new vd.FactReader(web3, chatHolderAddress)
     while (msg = await fReader.getString(tesiEthereumAddress, 'msg' + i)) {
         messages.push(msg)
         i++
-    }
-    return messages;*/
-    return ["ciao"]
+    }*/
+    return messages
 }
 
 function hash(string) {     // I could pass a second parameter as the used hash algorithm, for future-proofing (and saving the used algorithm in the blockchain)
@@ -120,7 +120,7 @@ app.post("/home", (req, res) => {
     // Logic for creating passport or importing it and maintaining in session
     // Username must be unique in case of registration, so the user can avoid using its address and make it seamless with a normal chat
     if (req.session)
-        req.session.destroy()
+        req.session.logged = false
     
     if (req.body.todo == "Registrati") {
         
@@ -141,9 +141,6 @@ app.post("/home", (req, res) => {
             if (shouldStop) return
             generator.createPassport(tesiEthereumAddress).then(txConf => {
                 sendTransaction(txConf).then(receipt => {
-                    console.log("-----RECEIPT-----")
-                    console.log(receipt)
-                    console.log("-----------------")
                     let passAddress = vd.PassportGenerator.getPassportAddressFromReceipt(receipt)
                     console.log("Passport created at " + passAddress + "!")
                     new vd.PassportOwnership(web3, passAddress).claimOwnership(tesiEthereumAddress).then(txC => {
@@ -177,8 +174,9 @@ app.post("/home", (req, res) => {
     } else if (req.body.todo == "Login") {
         passportReader.getPassportsList(passportFactoryAddress).then(passports => {
             let found = false
-            passports.forEach((pp) => {
-                let psReader = new vd.FactReader(web3, pp.passportAddress)
+            //passports.forEach((pp) => {
+            for (let i = 0; i < passports.length; i++) {
+                let psReader = new vd.FactReader(web3, passports[i].passportAddress)
                 psReader.getString(tesiEthereumAddress, "username").then(foundUsername => {
                     if (foundUsername == req.body.username) {
                         found = true
@@ -188,16 +186,21 @@ app.post("/home", (req, res) => {
                             if (hash(req.body.password) == foundPassword) {
                                 req.session.logged = true
                                 req.session.username = req.body.username
-                                req.session.address = pp.passportAddress
+                                req.session.address = passports[i].passportAddress
                                 res.sendFile(path.join(__dirname, 'web/home.html'));
                             } else res.redirect(401, '/login')
-    
-                            return
                         })
+
+                        return
                     }
                 })
-            })
-            if (!found) res.redirect(401, '/login')
+            }//)
+            //if (!found) res.redirect(401, '/login')
+            setTimeout(() => { if (!found) res.redirect(401, '/login') }, 10000)    // Fa schifo, ma la riga prima non funziona per asincronicità
+            /*if (passports.some(pp => new vd.FactReader(web3, pp.passportAddress)
+                    .getString(tesiEthereumAddress, "username").then((uname => { return uname == req.body.username })))) {
+                        
+            }*/
         })
     } else res.redirect(400, '/')
 })
@@ -216,7 +219,11 @@ app.post("/publishMessage", (req, res) => {     // AJAX method
             new vd.FactWriter(web3, req.session.address).setString(formatUsername(req.session.username), msg, tesiEthereumAddress).then(txData => {
                 sendTransaction(txData).then((rec, err) => {
                     if (!err) {
-                        res.status(200).send(/* retrieveAllMessages() */req.session.username)   // Uncommenting would be the best way, but very resource-intensive
+                        //let d = new Date()
+                        res.status(200).send(/* retrieveAllMessages() */{
+                            timestamp: Date.now(),
+                            username: req.session.username
+                        })   // Uncommenting would be the best way, but very resource-intensive
                     } else {
                         res.sendStatus(500)
                     }
@@ -228,7 +235,8 @@ app.post("/publishMessage", (req, res) => {     // AJAX method
 
 app.get("/logout", (req, res) => {
     if (isAuthenticated(req))
-        req.session.destroy()
+        //req.session.destroy()
+        req.session.logged = false
     res.redirect(200, "/")  // Changed from default 301 status code
 })
 
