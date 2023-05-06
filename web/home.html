@@ -8,18 +8,26 @@
 
         <link rel="stylesheet" href="style/home.css">
         <script>
+            var startup = true
+
             function formatRow(timestamp, author, message) {
                 return '<tr><th scope="row">' + new Date(timestamp).toISOString() + '</th><td>' + author + ':</td><td>' + message + '</td></tr>'
             }
 
             function retrieveMessages() {
+                if (startup) {
+                    $("form :input").prop("disabled", true)
+                    startup = false
+                }
                 $.get("/retrieveMessages", null, function(msgs) {
+                    msgs.sort((a, b) => b.timestamp - a.timestamp)
+                    $("form :input").prop("disabled", false)
+                    $("#chat-table").empty()
                     for (let i in msgs) {
-                        // SPLIT msg TO GET AUTHOR AND MESSAGE; separator is "-" without quotes; sort messages by timestamp
-                        $("#chat-list").val().append(formatRow(msgs[i].timestamp, msgs[i].author, msgs[i].message))
+                        $("#chat-table").append(formatRow(msgs[i].timestamp, msgs[i].author, msgs[i].message))
                     }
                 })
-                setTimeout(retrieveMessages, 10000)
+                setTimeout(retrieveMessages, 20000)
             }
 
             function submitMessage(e) {

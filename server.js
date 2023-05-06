@@ -20,6 +20,7 @@ const passportLogicRegistryAddress = process.env.PASSPORTLOGICREGISTRY_ADDRESS
 const passportFactoryAddress = process.env.PASSPORTFACTORY_ADDRESS
 const tesiEthereumAddress = process.env.TESI_ETHEREUM_ADDRESS
 const passportReader = new vd.PassportReader(web3)
+const historyFactReader = new vd.FactHistoryReader(web3)
 const generator = new vd.PassportGenerator(web3, passportFactoryAddress)
 let chatHolderAddress = process.env.CHAT_HOLDER_ADDRESS
 const chatWriter = new vd.FactWriter(web3, chatHolderAddress)
@@ -72,16 +73,32 @@ async function sendTransaction(txConfig) {
     return web3.eth.sendSignedTransaction(signedTx.rawTransaction)
 }
 
-function retrieveAllMessages() {
+async function retrieveAllMessages() {
     var messages = []
+    let names = {}
+    let currentRecord
 
-    /*var i = 0
-    var msg
-    var fReader = new vd.FactReader(web3, chatHolderAddress)
-    while (msg = await fReader.getString(tesiEthereumAddress, 'msg' + i)) {
-        messages.push(msg)
-        i++
-    }*/
+    let pps = await passportReader.getPassportsList(passportFactoryAddress)
+    for (let i in pps) {
+        let history = await passportReader.readPassportHistory(pps[i].passportAddress)
+        for (let j in history) {
+            currentRecord = history[j]
+            if (+currentRecord.key != NaN && currentRecord.eventType == "Updated" &&    // This last one shouldn't be included when implementing deletion of messages
+                currentRecord.dataType == "String" && currentRecord.key != "username" && currentRecord.key != "password") {
+                let fact = await historyFactReader.getString(currentRecord.transactionHash)
+                if (!names.hasOwnProperty(fact.passportAddress)) {
+                    names[fact.passportAddress] = await new vd.FactReader(web3, fact.passportAddress).getString(tesiEthereumAddress, "username")
+                }
+                if (fact.key != '') {       // First test messages in the blockchain did not saved correctly under the specified key
+                    messages.push({
+                        timestamp: +fact.key,
+                        author: names[fact.passportAddress],
+                        message: fact.value
+                    })
+                }
+            }
+        }
+    }
     return messages
 }
 
@@ -89,14 +106,14 @@ function hash(string) {     // I could pass a second parameter as the used hash 
   return createHash('sha256').update(string).digest('hex');
 }
 
-function formatUsername(username) {
+/*function formatUsername(username) {
     //return Date.now() + "-" + username
     return Date.now()
 }
 
 function parseKey() {
     // WITH CURRENT LOGIC IT'S USELESS (SEE formatUsername())
-}
+}*/
 
 function isAuthenticated(request) {
     if (request.session && request.session.logged && request.session.logged == true)
@@ -116,16 +133,13 @@ app.get("/register", (req, res) => {
     res.sendFile(path.join(__dirname, 'web/register.html'));
 })
 
-app.post("/home", (req, res) => {
-    // Logic for creating passport or importing it and maintaining in session
-    // Username must be unique in case of registration, so the user can avoid using its address and make it seamless with a normal chat
+app.post("/home", (req, res) => {       // Logic for creating passport or importing it and maintaining in session
+    // Username must be unique in case of registration, so the user can avoid using its passport address and make it seamless with a normal chat
     if (req.session)
         req.session.logged = false
     
     if (req.body.todo == "Registrati") {
-        
-        // check if username does not already exist TODO
-        // after having created the digital identity, you MUST set the whitelist to only allow the creator of the D.I. to write to it TODO
+        // after having created the digital identity, you MUST set the whitelist to only allow the creator of the D.I. to write to it
 
         passportReader.getPassportsList(passportFactoryAddress).then(passports => {
             let shouldStop = false
@@ -139,7 +153,7 @@ app.post("/home", (req, res) => {
                 })
             })
             if (shouldStop) return
-            generator.createPassport(tesiEthereumAddress).then(txConf => {
+            generator.createPassport(tesiEthereumAddress).then(txConf => {      // Need to change this pyramid with async/await functions
                 sendTransaction(txConf).then(receipt => {
                     let passAddress = vd.PassportGenerator.getPassportAddressFromReceipt(receipt)
                     console.log("Passport created at " + passAddress + "!")
@@ -196,17 +210,12 @@ app.post("/home", (req, res) => {
                 })
             }//)
             //if (!found) res.redirect(401, '/login')
-            setTimeout(() => { if (!found) res.redirect(401, '/login') }, 10000)    // Fa schifo, ma la riga prima non funziona per asincronicità
-            /*if (passports.some(pp => new vd.FactReader(web3, pp.passportAddress)
-                    .getString(tesiEthereumAddress, "username").then((uname => { return uname == req.body.username })))) {
-                        
-            }*/
+            setTimeout(() => { if (!found) res.redirect(401, '/login') }, 10000)    // Terribile, ma la riga prima non funziona per asincronicità
         })
     } else res.redirect(400, '/')
 })
 
 app.get("/home", (req, res) => {
-    //req.session.logged = true
     if (isAuthenticated(req)) {
         res.sendFile(path.join(__dirname, 'web/home.html'))
     } else res.sendFile(path.join(__dirname, 'web/notAuth.html'))
@@ -216,10 +225,9 @@ app.post("/publishMessage", (req, res) => {     // AJAX method
     if (isAuthenticated(req)) {
         var msg = req.body.message
         if (msg && msg.length > 0 && msg.length <= 1024) {
-            new vd.FactWriter(web3, req.session.address).setString(formatUsername(req.session.username), msg, tesiEthereumAddress).then(txData => {
+            new vd.FactWriter(web3, req.session.address).setString(Date.now().toString(), msg, tesiEthereumAddress).then(txData => {
                 sendTransaction(txData).then((rec, err) => {
                     if (!err) {
-                        //let d = new Date()
                         res.status(200).send(/* retrieveAllMessages() */{
                             timestamp: Date.now(),
                             username: req.session.username
@@ -240,32 +248,27 @@ app.get("/logout", (req, res) => {
     res.redirect(200, "/")  // Changed from default 301 status code
 })
 
-app.get("/retrieveMessages", (req, res) => {    // Everybody can read without authentication, data is public anyway
-    res.send(retrieveAllMessages())
+app.get("/retrieveMessages", async (req, res) => {    // Everybody can read without authentication, data is public anyway
+    //if (isAuthenticated(req))
+    res.send(await retrieveAllMessages())
 })
 
 app.listen(port, () => {
     console.log("Listening on port " + port)
     
-    // Creating a passport for holding messages, if not already present.
+    // Creating a passport for holding messages, if not already present. Useless now.
     passportReader.getPassportsList(passportFactoryAddress).then(passports => {
         if (passports.length == 0) {
             generator.createPassport(tesiEthereumAddress).then(txConfig => {
                 web3.eth.accounts.signTransaction(txConfig, privateKey).then(signedTx => {
                     web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(error, receipt) {
                         if (!error) {
-                            console.log("------ RECEIPT ------")
-                            console.log(receipt)
-                            console.log("---------------------")
                             chatHolderAddress = vd.PassportGenerator.getPassportAddressFromReceipt(receipt)
-                            console.log("The address of the chat messages holder is " + chatHolderAddress)
                             var ownership = new vd.PassportOwnership(web3, chatHolderAddress)
                             ownership.claimOwnership(tesiEthereumAddress).then(txConf => {
                                 web3.eth.accounts.signTransaction(txConf, privateKey).then(toSubmit => {
                                     web3.eth.sendSignedTransaction(toSubmit.rawTransaction, function(ownerErr, ownReceipt) {
-                                        if (!ownerErr)
-                                            console.log("Ownership claimed, too!")
-                                        else {
+                                        if (ownerErr) {
                                             console.log(ownerErr)
                                             exit()
                                         }
@@ -311,21 +314,15 @@ app.listen(port, () => {
         console.log(err)
         exit()
     })
-    // End of creation of passport or its retrieving.
 })
 
 
 /* IMPORTANT POINTS:
 1) One-Point-Failure --> my Node.js server, if taken down, would interrupt access to the chat (THIS IS AN ARCHITECTURAL PROBLEM OF C/S APPS????)
     Messages are always readable from Ethereum blockchain, even if my Node server is down
-2) No verification of multiple identities by same user
-3) CHIUNQUE PUO' SCRIVERE SU UNA IDENTITA' DIGITALE (SOLO I FACTS PRIVATI RICHIEDONO DI ESSERE OWNER) --> NON SI PUO' DARE PER SCONTATA L'IDENTITA'
-4) I MESSAGGI SONO IN CHIARO PER SEMPLICITA' --> potrei farli privati ma che sbatto (sarebbero basati su IPFS)
-5) Proseguimento del punto 4: SOLO I DATI DEGLI UTENTI SONO PRIVATI (OWNERSHIP SOLO DAL SERVER (!!!), ENCRYPTION KEY MANDATA DAL CLIENTE AL LOGIN)
-   Ciò significa che potenzialmente il server può leggere username/password (se non hashata, ma io la hasho), ma gli utenti devono avere fiducia che io non lo faccia.
-   Faccio così per evitare agli utenti lo sbatto di avere proprie chiavi private e pubbliche e di avere un account ETH con un saldo non nullo (dato che claimare ownership costa) 
-   e tutto il resto come descritto nella tesi al terzo capitolo
-   SOLUZIONE DA VERIFICARE: BANALMENTE, SE SALVO TUTTO COME FATTI -NON- PRIVATI (MA LA PASSWORD CON HASH) RISOLVO LA COSA CIRCA
-6) USARE COME CHIAVE LA COPPIA (Timestamp, Author) E VALORE Messaggio --> RIFORMULAZIONE: è stata usata (Timestamp): (Message), dato che ogni messaggio è salvato nell'indirizzo dello scrittore
-7) NON RISPETTO LA GDPR --> L'UTENTE NON HA POSSIBILITA' DI RITIRARE I PROPRI DATI
+2) Impossibilità di verificare che l'utente crei identità multiple
+3) I MESSAGGI SONO IN CHIARO PER SEMPLICITA' --> potrei farli privati ma molto oneroso (sarebbero basati su IPFS)
+4) E' stato deciso di salvare tutto come Fatti NON privati: la password è salvata come hash, e viene controllato l'hash in fase di login
+5) è stato usato il formato '(Timestamp): (Message)' per i messaggi, dato che ogni messaggio è salvato nell'indirizzo dello scrittore
+6) NON RISPETTO LA GDPR --> L'UTENTE NON HA POSSIBILITA' DI RITIRARE I PROPRI DATI
 */

@@ -1,4 +1,8 @@
 .pre-scrollable {
-    max-height: 340px;
+    height: 340px;
     overflow-y: auto;
 }
+
+/*table {
+    min-height: 100%;
+}*/
