@@ -145,6 +145,8 @@ app.post("/home", async (req, res) => {       // Logic for creating passport or 
         txConf = await new vd.PassportOwnership(web3, passAddress).claimOwnership(tesiEthereumAddress)
         receipt = await sendTransaction(txConf)
         console.log("Passport ownership claimed!")
+
+        // Should make these three writes parallel for efficiency (callbacks, then syntax)
         txConf = await new vd.Permissions(web3, passAddress).setWhitelistOnlyPermission(true, tesiEthereumAddress)
         receipt = await sendTransaction(txConf)
         console.log("Passport whitelisted!")
@@ -196,11 +198,12 @@ app.post("/publishMessage", (req, res) => {     // AJAX method
     if (isAuthenticated(req)) {
         var msg = req.body.message
         if (msg && msg.length > 0 && msg.length <= 1024) {
-            new vd.FactWriter(web3, req.session.address).setString(Date.now().toString(), msg, tesiEthereumAddress).then(txData => {
+            let publishTime = Date.now()
+            new vd.FactWriter(web3, req.session.address).setString(publishTime.toString(), msg, tesiEthereumAddress).then(txData => {
                 sendTransaction(txData).then((rec, err) => {
                     if (!err) {
                         res.status(200).send(/* retrieveAllMessages() */{
-                            timestamp: Date.now(),
+                            timestamp: publishTime,
                             username: req.session.username
                         })   // Uncommenting would be the best way (??? --> requests overlapped), but very resource-intensive and slow
                     } else {
