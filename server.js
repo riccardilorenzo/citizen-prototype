@@ -83,7 +83,7 @@ async function retrieveAllMessages() {
         for (let j in history) {
             currentRecord = history[j]
             if (+currentRecord.key != NaN && currentRecord.eventType == "Updated" &&    // This last one shouldn't be included when implementing deletion of messages
-                currentRecord.dataType == "String" && currentRecord.key != "username" && currentRecord.key != "password") {
+                currentRecord.dataType == "String"/* && currentRecord.key != "username" && currentRecord.key != "password"*/) {
                 let fact = await historyFactReader.getString(currentRecord.transactionHash)
                 if (!names.hasOwnProperty(fact.passportAddress)) {
                     names[fact.passportAddress] = await new vd.FactReader(web3, fact.passportAddress).getString(tesiEthereumAddress, "username")
@@ -106,9 +106,10 @@ function hash(string) {     // I could pass a second parameter as the used hash 
 }
 
 function isAuthenticated(request) {
-    if (request.session && request.session.logged && request.session.logged == true)
-        return true
-    return false
+    return (request.session && request.session.logged && request.session.logged == true)
+    //if (request.session && request.session.logged && request.session.logged == true)
+        //return true
+    //return false
 }
 
 app.get("/", function(req, res) {
