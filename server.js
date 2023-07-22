@@ -34,7 +34,7 @@ app.use(
 )
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
-app.use(bodyParser.text())
+app.use(bodyParser.text());
 
 /*function requireRole (role) {
     return function (req, res, next) {
@@ -223,9 +223,9 @@ app.get("/logout", (req, res) => {
     res.redirect("/")
 })
 
-app.get("/retrieveMessages", async (req, res) => {    // Everybody can read without authentication, data is public anyway
-    //if (isAuthenticated(req))
-    res.send(await retrieveAllMessages())
+app.get("/retrieveMessages", async (req, res) => {    // Data is public anyway, even with authentication check
+    if (isAuthenticated(req))
+        res.send(await retrieveAllMessages())
 })
 
 app.listen(port, () => {
@@ -266,14 +266,3 @@ app.listen(port, () => {
         exit()
     })
 })
-
-
-/* IMPORTANT POINTS:
-1) One-Point-Failure --> my Node.js server, if taken down, would interrupt access to the chat (THIS IS AN ARCHITECTURAL PROBLEM OF C/S APPS????)
-    Messages are always readable from Ethereum blockchain, even if my Node server is down
-2) Impossibilità di verificare che l'utente crei identità multiple
-3) I MESSAGGI SONO IN CHIARO PER SEMPLICITA' --> potrei farli privati ma molto oneroso (sarebbero basati su IPFS)
-4) E' stato deciso di salvare tutto come Fatti NON privati: la password è salvata come hash, e viene controllato l'hash in fase di login
-5) è stato usato il formato '(Timestamp): (Message)' per i messaggi, dato che ogni messaggio è salvato nell'indirizzo dello scrittore
-6) NON RISPETTO LA GDPR --> L'UTENTE NON HA POSSIBILITA' DI RITIRARE I PROPRI DATI
-*/
